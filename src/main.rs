@@ -8,26 +8,27 @@ order = [
 ]
 */
 
-use std::str::Chars;
+use std::{collections::HashSet, str::Chars};
 
+#[derive(Clone, Debug)]
 struct Tree {
+    is_sub_fn: bool,
+    value: NodeValue,
     left: Option<Box<Tree>>,
     right: Option<Box<Tree>>,
-
-    value: NodeValue
 }
 
 impl Tree {
     fn new(value: NodeValue) -> Self {
-        Self { left: None, right: None, value }
+        Self { is_sub_fn: false, left: None, right: None, value }
     }
 
     fn new_with_left(value: NodeValue, left: Tree) -> Self {
-        Self { left: Some(Box::new(left)), right: None, value }
+        Self { is_sub_fn: false, left: Some(Box::new(left)), right: None, value }
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 enum NodeValue {
     Not,
     And,
@@ -38,11 +39,16 @@ enum NodeValue {
     Var(char)
 }
 
-impl NodeValue {
-    fn has_left(&self) -> bool {
-        match self {
-            Self::Not | Self::Var(_) => true,
-            _ => false
+impl From<&NodeValue> for char {
+    fn from(value: &NodeValue) -> Self {
+        match *value {
+            NodeValue::Not => '¬',
+            NodeValue::And => '∧',
+            NodeValue::Or => '∨',
+            NodeValue::Xor => '⊕',
+            NodeValue::Impl => '→',
+            NodeValue::Eq => '↔',
+            NodeValue::Var(c) => c,
         }
     }
 }
@@ -60,7 +66,7 @@ impl Ord for NodeValue {
             Self::Var(_) => {
                 match *other {
                     Self::Var(_) => Equal,
-                    _ => Less
+                    _ => Greater
                 }
             }
             Self::Not => {
@@ -72,16 +78,15 @@ impl Ord for NodeValue {
             }
             Self::And | Self::Or | Self::Xor => {
                 match *other {
-                    Self::Var(_) | Self::Not => Greater,
+                    Self::Var(_) | Self::Not => Less,
                     Self::And | Self::Or | Self::Xor => Equal,
-                    Self::Impl | Self::Eq => Less
+                    Self::Impl | Self::Eq => Greater
                 }
             }
             Self::Impl | Self::Eq => {
                 match *other {
-                    Self::Var(_) | Self::Not => Greater,
-                    Self::And | Self::Or | Self::Xor => Greater,
-                    Self::Impl | Self::Eq => Equal
+                    Self::Impl | Self::Eq => Equal,
+                    _ => Less
                 }
             }
         }
@@ -119,44 +124,107 @@ impl From<&mut Chars<'_>> for NodeValueFromChars {
 }
 
 fn process_formula(chars: &mut std::str::Chars) -> Tree {
-    let mut root = Tree::new(if let NodeValueFromChars::NodeValue(root) = chars.into() {root} else {panic!()});
-    let mut current = &root;
+    println!("Sub function started with {}", chars.clone().collect::<String>());
+    let mut root = match chars.into() {
+        NodeValueFromChars::NodeValue(root) => Tree::new(root),
+        NodeValueFromChars::BracketOpen => process_formula(chars),
+        _ => panic!()
+    };
+    let mut current: Option<&mut Tree> = None;
 
     loop {
         match chars.into() {
             NodeValueFromChars::End => {
-                break
+                println!("Sub function ended {}", chars.clone().collect::<String>());
+                break;
             }
 
             NodeValueFromChars::BracketOpen => {
                 let sub_tree = process_formula(chars);
+                println!("Sub function stored");
+                if let Some(some_current) = current {
+                    some_current.right = Some(Box::new(sub_tree));
+                    current = None;
+                } else {
+                    root.right = Some(Box::new(sub_tree));
+                    current = Some(root.right.as_mut().unwrap());
+                }
             }
 
             NodeValueFromChars::NodeValue(value) => {
-                if value < root.value {
+                if value < root.value || root.is_sub_fn {
                     // If this operator has a lower priority, take over the root
+                    println!("{} < {}", char::from(&value), char::from(&root.value));
                     root = Tree::new_with_left(value, root);
-                    current = &root;
+                    current = None;
                 } else {
-                    if root.right.is_none() {
-                        root.right = Some(Box::new(Tree::new(value)));
-                        current = root.right;
-                    } else {
-                        if value < current.value {
-                            root.right = Some(Box::new(Tree::new_with_left(value, current)));
-                            current = root.right;
+                    if let Some(some_current) = current {
+                        if value < some_current.value || root.is_sub_fn {
+                            root.right = Some(Box::new(Tree::new_with_left(value, some_current.clone())));
+                            current = None;
                         } else {
-                            current.right = Some(Box::new(Tree::new(value)));
-                            current = current.right;
+                            some_current.right = Some(Box::new(Tree::new(value)));
+                            current = None;
                         }
+                    } else {
+                        root.right = Some(Box::new(Tree::new(value)));
+                        current = Some(root.right.as_mut().unwrap());
                     }
                 }
             }
         }
     }
-    todo!()
+    println!("Sub function returned");
+    root.is_sub_fn = true;
+    root
+}
+
+fn print_tree(tree: Tree) {
+    let mut result = 
+r#"```mermaid
+flowchart TB
+"#.to_string();
+
+    print_sub_tree(tree, &mut result, 0);
+
+    println!("{}", result);
+}
+
+fn print_sub_tree(tree: Tree, result: &mut String, id: u8) -> u8 {
+    let logic_char: char = (&tree.value).into();
+    result.push_str(&format!("node{id}[\"{logic_char}\"]\n"));
+    
+    let left_size = if let Some(left) = tree.left.clone() {
+        println!("Has left");
+        let left_size = print_sub_tree(*left, result, id + 1);
+        result.push_str(&format!("node{} --> node{}\n", id, id + 1));
+        left_size
+    } else {0};
+    
+    if let Some(right) = tree.right {
+        println!("Has right");
+        let right_size = print_sub_tree(*right, result, id + 1 + left_size);
+        result.push_str(&format!("node{} --> node{}\n", id, id + 1 + left_size));
+        left_size + right_size + 1
+    } else {left_size + 1}
+}
+
+fn get_variables(tree: &Tree) -> HashSet<char> {
+    let mut result = HashSet::new();
+    get_variables_sub_tree(tree, &mut result);
+    result
+}
+
+fn get_variables_sub_tree(tree: &Tree, result: &mut HashSet<char>) {
+    
+}
+
+fn print_truth_table(tree: Tree) {
+
 }
 
 fn main() {
-    process_formula(&mut "!((!q ^ (p -> r)) ^ (r -> q))".chars());
+    let res = process_formula(&mut "!((!q & (p -> r)) & (r -> q))".chars());
+    println!("{:#?}", res);
+    print_tree(res);
 }
