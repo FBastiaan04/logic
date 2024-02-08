@@ -124,7 +124,6 @@ impl From<&mut Chars<'_>> for NodeValueFromChars {
 }
 
 fn process_formula(chars: &mut std::str::Chars) -> Tree {
-    println!("Sub function started with {}", chars.clone().collect::<String>());
     let mut root = match chars.into() {
         NodeValueFromChars::NodeValue(root) => Tree::new(root),
         NodeValueFromChars::BracketOpen => process_formula(chars),
@@ -135,13 +134,11 @@ fn process_formula(chars: &mut std::str::Chars) -> Tree {
     loop {
         match chars.into() {
             NodeValueFromChars::End => {
-                println!("Sub function ended {}", chars.clone().collect::<String>());
                 break;
             }
 
             NodeValueFromChars::BracketOpen => {
                 let sub_tree = process_formula(chars);
-                println!("Sub function stored");
                 if let Some(some_current) = current {
                     some_current.right = Some(Box::new(sub_tree));
                     current = None;
@@ -152,14 +149,14 @@ fn process_formula(chars: &mut std::str::Chars) -> Tree {
             }
 
             NodeValueFromChars::NodeValue(value) => {
-                if value < root.value || root.is_sub_fn {
+                if value <= root.value || root.is_sub_fn {
                     // If this operator has a lower priority, take over the root
-                    println!("{} < {}", char::from(&value), char::from(&root.value));
+                    println!("{} <= {}", char::from(&value), char::from(&root.value));
                     root = Tree::new_with_left(value, root);
                     current = None;
                 } else {
                     if let Some(some_current) = current {
-                        if value < some_current.value || root.is_sub_fn {
+                        if value <= some_current.value || root.is_sub_fn {
                             root.right = Some(Box::new(Tree::new_with_left(value, some_current.clone())));
                             current = None;
                         } else {
@@ -174,7 +171,6 @@ fn process_formula(chars: &mut std::str::Chars) -> Tree {
             }
         }
     }
-    println!("Sub function returned");
     root.is_sub_fn = true;
     root
 }
@@ -195,14 +191,12 @@ fn print_sub_tree(tree: Tree, result: &mut String, id: u8) -> u8 {
     result.push_str(&format!("node{id}[\"{logic_char}\"]\n"));
     
     let left_size = if let Some(left) = tree.left.clone() {
-        println!("Has left");
         let left_size = print_sub_tree(*left, result, id + 1);
         result.push_str(&format!("node{} --> node{}\n", id, id + 1));
         left_size
     } else {0};
     
     if let Some(right) = tree.right {
-        println!("Has right");
         let right_size = print_sub_tree(*right, result, id + 1 + left_size);
         result.push_str(&format!("node{} --> node{}\n", id, id + 1 + left_size));
         left_size + right_size + 1
@@ -271,7 +265,20 @@ fn calc_sub_tree(tree: &Tree, variables: &HashMap<char, bool>) -> Option<bool> {
 }
 
 fn main() {
-    let res = process_formula(&mut "!((!q & (p -> r)) & (r -> q))".chars());
+    /*
+    print!(r#"
+!   ¬   not
+&   ∧   and
+V   ∨   or
+^   ⊕   xor
+->  →   implies
+<-> ↔   equals
+"#);
+    let mut formula = String::new();
+    std::io::stdin().read_line(&mut formula).expect("Cannot read input");
+    */
+
+    let res = process_formula(&mut "!a & ((b V !c)) ^ d <-> a -> c".chars());
     print_truth_table(&res);
     print_tree(res);
 }
