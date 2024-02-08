@@ -8,7 +8,7 @@ order = [
 ]
 */
 
-use std::{collections::HashSet, str::Chars};
+use std::{collections::{HashMap, HashSet}, str::Chars};
 
 #[derive(Clone, Debug)]
 struct Tree {
@@ -216,15 +216,62 @@ fn get_variables(tree: &Tree) -> HashSet<char> {
 }
 
 fn get_variables_sub_tree(tree: &Tree, result: &mut HashSet<char>) {
-    
+    if let NodeValue::Var(c) = tree.value {
+        result.insert(c);
+    }
+    if let Some(left) = &tree.left {
+        get_variables_sub_tree(left, result)
+    }
+    if let Some(right) = &tree.right {
+        get_variables_sub_tree(right, result)
+    }
 }
 
-fn print_truth_table(tree: Tree) {
+fn print_truth_table(tree: &Tree) {
+    let mut variables: HashMap<char, bool> = get_variables(&tree).into_iter().map(|var| (var, false)).collect();
 
+    let mut result = String::new();
+    for variable in variables.keys() {
+        result.push('|');
+        result.push(*variable);
+    }
+    result.push_str("|res|\n|---");
+    for _ in 0..variables.len() {
+        result.push_str("|---");
+    }
+
+    for values in 0..(1_u8 << variables.len()) {
+        result.push_str("|\n|");
+        for _ in 0..variables.len() {
+        }
+
+        for (i, (_, value)) in variables.iter_mut().enumerate() {
+            *value = ((values >> i) & 1) != 0;
+            result.push(if *value {'T'} else {'F'});
+            result.push('|');
+        }
+
+        let eq_res = calc_sub_tree(tree, &variables);
+        result.push(if eq_res.unwrap() {'T'} else {'F'});
+    }
+    result.push('|');
+    println!("{}", result);
+}
+
+fn calc_sub_tree(tree: &Tree, variables: &HashMap<char, bool>) -> Option<bool> {
+    Some(match tree.value {
+        NodeValue::Not => !calc_sub_tree(tree.right.as_ref()?, variables)?,
+        NodeValue::And => calc_sub_tree(tree.left.as_ref()?, variables)? && calc_sub_tree(tree.right.as_ref()?, variables)?,
+        NodeValue::Or => calc_sub_tree(tree.left.as_ref()?, variables)? || calc_sub_tree(tree.right.as_ref()?, variables)?,
+        NodeValue::Xor => calc_sub_tree(tree.left.as_ref()?, variables)? ^ calc_sub_tree(tree.right.as_ref()?, variables)?,
+        NodeValue::Impl => !calc_sub_tree(tree.left.as_ref()?, variables)? || calc_sub_tree(tree.right.as_ref()?, variables)?,
+        NodeValue::Eq => calc_sub_tree(tree.left.as_ref()?, variables)? == calc_sub_tree(tree.right.as_ref()?, variables)?,
+        NodeValue::Var(c) => *variables.get(&c)?,
+    })
 }
 
 fn main() {
     let res = process_formula(&mut "!((!q & (p -> r)) & (r -> q))".chars());
-    println!("{:#?}", res);
+    print_truth_table(&res);
     print_tree(res);
 }
