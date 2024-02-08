@@ -151,7 +151,6 @@ fn process_formula(chars: &mut std::str::Chars) -> Tree {
             NodeValueFromChars::NodeValue(value) => {
                 if value <= root.value || root.is_sub_fn {
                     // If this operator has a lower priority, take over the root
-                    println!("{} <= {}", char::from(&value), char::from(&root.value));
                     root = Tree::new_with_left(value, root);
                     current = None;
                 } else {
@@ -265,9 +264,7 @@ fn calc_sub_tree(tree: &Tree, variables: &HashMap<char, bool>) -> Option<bool> {
 }
 
 fn main() {
-    /*
-    print!(r#"
-!   ¬   not
+    print!(r#"!   ¬
 &   ∧   and
 V   ∨   or
 ^   ⊕   xor
@@ -276,9 +273,8 @@ V   ∨   or
 "#);
     let mut formula = String::new();
     std::io::stdin().read_line(&mut formula).expect("Cannot read input");
-    */
 
-    let res = process_formula(&mut "!a & ((b V !c)) ^ d <-> a -> c".chars());
+    let res = process_formula(&mut formula.trim().chars());
     print_truth_table(&res);
     print_tree(res);
 }
