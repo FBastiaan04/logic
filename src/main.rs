@@ -154,7 +154,7 @@ fn process_formula(chars: &mut std::str::Chars) -> Tree {
                 let mut current = &root;
 
                 loop {
-                    if value > current.value {
+                    if value > current.value && !current.is_sub_fn {
                         depth += 1;
                         if let Some(right) = &current.right {
                             current = &right;
