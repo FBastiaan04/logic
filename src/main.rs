@@ -138,11 +138,9 @@ fn process_formula(chars: &mut std::str::Chars) -> Tree {
                 let sub_tree = process_formula(chars);
                 let mut current = &mut root;
 
-                loop {
-                    if current.right.is_some() {
-                        current = current.right.as_mut().unwrap();
-                    } else {
-                        break;
+                while current.right.is_some() {
+                    unsafe {
+                        current = current.right.as_mut().unwrap_unchecked();
                     }
                 }
 
@@ -153,14 +151,10 @@ fn process_formula(chars: &mut std::str::Chars) -> Tree {
                 let mut depth = 0;
                 let mut current = &root;
 
-                loop {
-                    if value > current.value && !current.is_sub_fn {
-                        depth += 1;
-                        if let Some(right) = &current.right {
-                            current = &right;
-                        } else {
-                            break;
-                        }
+                while value > current.value && !current.is_sub_fn {
+                    depth += 1;
+                    if let Some(right) = &current.right {
+                        current = &right;
                     } else {
                         break;
                     }
