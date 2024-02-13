@@ -274,12 +274,14 @@ fn calc_sub_tree(tree: &Tree, variables: &HashMap<char, bool>) -> Option<bool> {
 }
 
 fn main() {
-    print!(r#"!   ¬
+    print!(r#"!   ¬   Not
 &   ∧   and
 V   ∨   or
 ^   ⊕   xor
 ->  →   implies
-<-> ↔   equals
+<-> ↔   bi-implies
+Any other single unicode character is interpreted as a variable.
+Spaces are optional.
 "#);
     let mut formula = String::new();
     std::io::stdin().read_line(&mut formula).expect("Cannot read input");
