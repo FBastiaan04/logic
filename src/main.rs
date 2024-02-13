@@ -1,13 +1,3 @@
-/*
-formula = "!((!q ^ (p -> r)) ^ (r -> q))"
-
-order = [
-    ["!"],
-    ["&", "V", "^"],
-    ["->", "<->"]
-]
-*/
-
 use std::{collections::{HashMap, HashSet}, str::Chars};
 
 #[derive(Clone, Debug)]
@@ -25,6 +15,14 @@ impl Tree {
 
     fn new_with_left(value: NodeValue, left: Tree) -> Self {
         Self { is_sub_fn: false, left: Some(Box::new(left)), right: None, value }
+    }
+
+    fn nth_right_child(&mut self, n: usize) -> &mut Self {
+        let mut result = self;
+        for _ in 0..n {
+            result = result.right.as_deref_mut().unwrap();
+        }
+        result
     }
 }
 
@@ -129,7 +127,6 @@ fn process_formula(chars: &mut std::str::Chars) -> Tree {
         NodeValueFromChars::BracketOpen => process_formula(chars),
         _ => panic!()
     };
-    let mut current: Option<&mut Tree> = None;
 
     loop {
         match chars.into() {
@@ -139,32 +136,44 @@ fn process_formula(chars: &mut std::str::Chars) -> Tree {
 
             NodeValueFromChars::BracketOpen => {
                 let sub_tree = process_formula(chars);
-                if let Some(some_current) = current {
-                    some_current.right = Some(Box::new(sub_tree));
-                    current = None;
-                } else {
-                    root.right = Some(Box::new(sub_tree));
-                    current = Some(root.right.as_mut().unwrap());
+                let mut current = &mut root;
+
+                loop {
+                    if current.right.is_some() {
+                        current = current.right.as_mut().unwrap();
+                    } else {
+                        break;
+                    }
                 }
+
+                current.right = Some(Box::new(sub_tree));
             }
 
             NodeValueFromChars::NodeValue(value) => {
-                if value <= root.value || root.is_sub_fn {
-                    // If this operator has a lower priority, take over the root
-                    root = Tree::new_with_left(value, root);
-                    current = None;
-                } else {
-                    if let Some(some_current) = current {
-                        if value <= some_current.value || root.is_sub_fn {
-                            root.right = Some(Box::new(Tree::new_with_left(value, some_current.clone())));
-                            current = None;
+                let mut depth = 0;
+                let mut current = &root;
+
+                loop {
+                    if value > current.value {
+                        depth += 1;
+                        if let Some(right) = &current.right {
+                            current = &right;
                         } else {
-                            some_current.right = Some(Box::new(Tree::new(value)));
-                            current = None;
+                            break;
                         }
                     } else {
-                        root.right = Some(Box::new(Tree::new(value)));
-                        current = Some(root.right.as_mut().unwrap());
+                        break;
+                    }
+                }
+
+                if depth == 0 {
+                    root = Tree::new_with_left(value, root);
+                } else {
+                    let to_change = root.nth_right_child(depth - 1);
+                    if let Some(old_right) = &to_change.right {
+                        to_change.right = Some(Box::new(Tree::new_with_left(value, *old_right.to_owned())));
+                    } else {
+                        to_change.right = Some(Box::new(Tree::new(value)));
                     }
                 }
             }
@@ -181,6 +190,7 @@ flowchart TB
 "#.to_string();
 
     print_sub_tree(tree, &mut result, 0);
+    result.push_str("```");
 
     println!("{}", result);
 }
@@ -240,12 +250,12 @@ fn print_truth_table(tree: &Tree) {
 
         for (i, (_, value)) in variables.iter_mut().enumerate() {
             *value = ((values >> i) & 1) != 0;
-            result.push(if *value {'T'} else {'F'});
+            result.push_str(if *value {"<span style=\"color:green\">T</span>"} else {"<span style=\"color:red\">F</span>"});
             result.push('|');
         }
 
         let eq_res = calc_sub_tree(tree, &variables);
-        result.push(if eq_res.unwrap() {'T'} else {'F'});
+        result.push_str(if eq_res.unwrap() {"<span style=\"color:green\">T</span>"} else {"<span style=\"color:red\">F</span>"});
     }
     result.push('|');
     println!("{}", result);
@@ -273,7 +283,7 @@ V   ∨   or
 "#);
     let mut formula = String::new();
     std::io::stdin().read_line(&mut formula).expect("Cannot read input");
-
+    
     let res = process_formula(&mut formula.trim().chars());
     print_truth_table(&res);
     print_tree(res);
