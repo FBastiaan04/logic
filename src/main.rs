@@ -1,5 +1,12 @@
 use std::{collections::{HashMap, HashSet}, str::Chars};
 
+
+#[derive(PartialEq, PartialOrd)]
+struct Lex<T, U> {
+    first: T,
+    second: U
+}
+
 #[derive(Clone, Debug)]
 struct Tree {
     is_sub_fn: bool,
@@ -249,7 +256,7 @@ fn print_truth_table(tree: &Tree) {
         }
 
         let eq_res = calc_sub_tree(tree, &variables);
-        result.push_str(if eq_res.unwrap() {"<span style=\"color:green\">T</span>"} else {"<span style=\"color:red\">F</span>"});
+        result.push_str(if eq_res.expect("Invalid formula") {"<span style=\"color:green\">T</span>"} else {"<span style=\"color:red\">F</span>"});
     }
     result.push('|');
     println!("{}", result);
